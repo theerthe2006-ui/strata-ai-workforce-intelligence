@@ -1,0 +1,12 @@
+{
+  "name": "enterprise-workforce-predictive-analytics-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "cd frontend && npm run build",
+    "test": "cd backend && python -m pytest",
+    "lint": "cd frontend && npm run lint"
+  },
+  "devDependencies": {}
+}
