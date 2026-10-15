@@ -62,7 +62,7 @@ export function Dashboard({ session, onLogout }: DashboardProps) {
 
   const employeesQuery = useQuery({
     queryKey: ['employees'],
-    queryFn: getEmployees,
+    queryFn: () => getEmployees(),
   });
 
   const skillGapsQuery = useQuery({
@@ -96,7 +96,7 @@ export function Dashboard({ session, onLogout }: DashboardProps) {
   const firstError = apiQueries.find((query) => query.isError)?.error;
   const firstErrorMessage = firstError instanceof Error ? firstError.message : 'One or more workforce intelligence services are unavailable.';
 
-  const userDirectory = adminUsersQuery.data?.data ?? [
+  const userDirectory: Array<{ id: number; email: string; role: string }> = adminUsersQuery.data?.data ?? [
     { id: 1, email: session?.user.email ?? 'admin@enterprise.workforce', role: session?.user.role ?? 'ADMIN' },
     { id: 2, email: 'hr@enterprise.workforce', role: 'HR' },
     { id: 3, email: 'manager@enterprise.workforce', role: 'MANAGER' }
@@ -105,15 +105,15 @@ export function Dashboard({ session, onLogout }: DashboardProps) {
   const [selectedUserId, setSelectedUserId] = useState<number>(userDirectory[0].id);
 
   const selectedUser = useMemo(() => {
-    return userDirectory.find((user) => user.id === selectedUserId) ?? userDirectory[0];
+    return userDirectory.find((user: { id: number; email: string; role: string }) => user.id === selectedUserId) ?? userDirectory[0];
   }, [selectedUserId, userDirectory]);
 
   const kpiData = workforceSummary
     ? [
         { label: 'Total Employees', value: new Intl.NumberFormat().format(workforceSummary.totalEmployees), delta: '+12.4%', trend: 'up', icon: Users },
-        { label: 'Attrition Risk', value: `${workforceSummary.attritionRisk}%`, delta: '-2.1%', trend: 'down', icon: AlertTriangle },
-        { label: 'Skill Coverage', value: `${workforceSummary.coverage}%`, delta: '+6.7%', trend: 'up', icon: GraduationCap },
-        { label: 'Retention Index', value: `${workforceSummary.retentionIndex}`, delta: '+3.2%', trend: 'up', icon: ShieldCheck }
+        { label: 'Attrition Risk', value: `${workforceSummary.averageAttritionRisk}%`, delta: '-2.1%', trend: 'down', icon: AlertTriangle },
+        { label: 'Skill Coverage', value: `${workforceSummary.skillCoverage}%`, delta: '+6.7%', trend: 'up', icon: GraduationCap },
+        { label: 'Retention Opportunity', value: `$${new Intl.NumberFormat().format(workforceSummary.retentionOpportunityValue)}`, delta: '+3.2%', trend: 'up', icon: ShieldCheck }
       ]
     : [
         { label: 'Total Employees', value: '1,284', delta: '+12.4%', trend: 'up', icon: Users },
@@ -130,7 +130,7 @@ export function Dashboard({ session, onLogout }: DashboardProps) {
     { skill: 'Security', gap: 8 }
   ];
 
-  const trainingRecommendations = prediction?.recommendations?.map((item, idx) => ({
+  const trainingRecommendations = prediction?.recommendations?.map((item: string, idx: number) => ({
     title: item,
     employees: (employees?.data?.length ?? 2) + idx,
     priority: idx === 0 ? 'High' : 'Medium',

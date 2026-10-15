@@ -441,6 +441,44 @@ export async function matchTalent(payload: {
   return data;
 }
 
+export interface RecommendationRecord {
+  id: number;
+  employeeId: number;
+  employeeNumber: string;
+  employeeName: string;
+  department: string;
+  type: string;
+  title: string;
+  description: string;
+  priority: string;
+  status: string;
+  estimatedRiskReduction: number;
+  createdAt: string | null;
+}
+
+export async function getRecommendations(params?: {
+  priority?: string;
+  status_filter?: string;
+}): Promise<{ data: RecommendationRecord[]; total: number }> {
+  const { data } = await apiClient.get<{ data: RecommendationRecord[]; total: number }>(
+    '/api/v1/recommendations',
+    { params }
+  );
+  return data;
+}
+
+export async function updateRecommendationStatus(
+  id: number,
+  newStatus: string
+): Promise<{ message: string }> {
+  const { data } = await apiClient.patch<{ message: string }>(
+    `/api/v1/recommendations/${id}/status`,
+    null,
+    { params: { new_status: newStatus } }
+  );
+  return data;
+}
+
 export async function simulateDigitalTwin(
   payload: DigitalTwinScenarioRequest
 ): Promise<DigitalTwinScenarioResponse> {
@@ -480,7 +518,39 @@ export async function uploadResume(formData: FormData): Promise<ParsedResumeResp
   return data;
 }
 
-export async function getSampleParsedResume(): Promise<ParsedResumeResponse['profile']> {
-  const { data } = await apiClient.get<ParsedResumeResponse['profile']>('/api/v1/resume/parse');
+export async function getAttritionPrediction(): Promise<{ recommendations: string[] }> {
+  return {
+    recommendations: [
+      'Upskill critical software engineering teams in Cloud & AI architecture',
+      'Provide retention adjustments for employees under 0.85 compa-ratio',
+      'Conduct manager check-ins for high overtime teams',
+    ],
+  };
+}
+
+export async function getAdminUsers(): Promise<{ data: Array<{ id: number; email: string; role: string }> }> {
+  const { data } = await apiClient.get<{ data: Array<{ id: number; email: string; role: string }> }>('/api/v1/admin/users');
   return data;
 }
+
+export async function getAdminSettings(): Promise<{ theme: string; model: string; audit: string }> {
+  const { data } = await apiClient.get<{ theme: string; model: string; audit: string }>('/api/v1/admin/settings');
+  return data;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  actor: string;
+  role: string;
+  action: string;
+  target: string;
+  status: 'SUCCESS' | 'WARNING' | 'ALERT';
+}
+
+export async function getAuditLogs(): Promise<{ data: AuditLogEntry[] }> {
+  const { data } = await apiClient.get<{ data: AuditLogEntry[] }>('/api/v1/admin/audit-logs');
+  return data;
+}
+
+

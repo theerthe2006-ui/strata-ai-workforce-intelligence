@@ -32,3 +32,10 @@ uploads/
 # OS
 .DS_Store
 Thumbs.db
+# Local ML model backups
+ml/artifacts/*_backup_*.joblib
+ml/artifacts/*_backup_*.json
+
+# Generated TypeScript build metadata
+frontend/*.tsbuildinfo
+frontend/**/*.tsbuildinfo

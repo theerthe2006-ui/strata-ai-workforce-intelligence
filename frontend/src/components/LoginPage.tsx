@@ -1,4 +1,5 @@
 import { FormEvent, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Activity, Lock, Mail } from 'lucide-react';
 import type { LoginRequest } from '../api/workforceApi';
 
@@ -116,7 +117,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 <input type="checkbox" />
                 <span>Keep me signed in</span>
               </label>
-              <a href="#">Forgot password?</a>
+              <Link to="/forgot-password" style={{ color: 'var(--primary)', fontSize: '13px' }}>
+                Forgot password?
+              </Link>
             </div>
 
             {error && (
@@ -128,6 +131,13 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             <button type="submit" className="login-button" disabled={isSubmitting}>
               {isSubmitting ? 'Signing in...' : 'Sign in to workspace'}
             </button>
+
+            <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '13px', color: 'var(--text-soft)' }}>
+              New to STRATA.AI?{' '}
+              <Link to="/register" style={{ color: 'var(--primary)', fontWeight: 600 }}>
+                Request access
+              </Link>
+            </div>
           </form>
 
           <div className="login-footer">
