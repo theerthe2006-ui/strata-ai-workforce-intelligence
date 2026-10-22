@@ -21,6 +21,7 @@ class WhatIfRequest(BaseModel):
     years_since_last_promotion: float | None = None
     manager_rating: float | None = None
     salary_growth_rate: float | None = None
+    role_transition_project_code: str | None = None
 
 
 class DigitalTwinRequest(BaseModel):
@@ -34,29 +35,7 @@ def simulate_individual_retention(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Simulate individual employee retention outcomes under hypothetical interventions."""
-    emp = workforce_service.get_employee_detail(db, str(payload.employee_id))
-    if not emp:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail=f"Employee {payload.employee_id} not found")
-
-    from ml.predict_service import prediction_service
-
-    current_features = {
-        "satisfaction_score": emp["satisfactionScore"],
-        "engagement_score": emp["engagementScore"],
-        "monthly_hours": emp["monthlyHours"],
-        "overtime_hours": emp["overtimeHours"],
-        "compa_ratio": emp["compaRatio"],
-        "years_since_last_promotion": emp["yearsSinceLastPromotion"],
-        "tenure_years": emp["tenureYears"],
-        "project_count": emp["projectCount"],
-        "manager_rating": emp["managerRating"],
-        "performance_score": emp["performanceScore"],
-        "salary_growth_rate": emp["salaryGrowthRate"],
-        "salary": emp["salary"],
-    }
-
+    """Simulate individual employee retention outcomes under hypothetical interventions and role transitions."""
     modifications = {}
     for key in [
         "satisfaction_score",
@@ -72,10 +51,16 @@ def simulate_individual_retention(
         if val is not None:
             modifications[key] = val
 
-    result = prediction_service.simulate_what_if(current_features, modifications)
-    result["employeeName"] = emp["fullName"]
-    result["employeeNumber"] = emp["employeeNumber"]
-    return result
+    try:
+        return workforce_service.simulate_role_transition_what_if(
+            db=db,
+            employee_id_or_number=str(payload.employee_id),
+            modifications=modifications,
+            role_transition_project_code=payload.role_transition_project_code,
+        )
+    except ValueError as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.post("/simulate/digital-twin")

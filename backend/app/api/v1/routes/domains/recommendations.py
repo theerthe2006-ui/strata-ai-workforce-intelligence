@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.database import get_db
 from app.models.workforce import Employee, RetentionRecommendation, User
+from app.services.workforce_service import workforce_service
 
 router = APIRouter()
 
@@ -103,3 +104,50 @@ def update_recommendation_status(
     rec.status = new_status
     db.commit()
     return {"message": f"Recommendation status updated to {new_status}"}
+
+
+class RoleTransitionApplyPayload(BaseModel):
+    project_code: str
+    title: str | None = None
+    description: str | None = None
+
+
+@router.get("/role-transitions/{employee_id}")
+def get_role_transition_recommendations(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """
+    Intelligent Role Transition Recommendations:
+    Connects attrition prediction, verified skill mapping, and internal role opportunities.
+    """
+    recs = workforce_service.get_role_transition_recommendations(db, employee_id)
+    if not recs:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Employee {employee_id} not found.",
+        )
+    return recs
+
+
+@router.post("/role-transitions/{employee_id}/apply", status_code=status.HTTP_201_CREATED)
+def apply_role_transition_recommendation(
+    employee_id: str,
+    payload: RoleTransitionApplyPayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """
+    Persist an internal role recommendation as a formal retention intervention.
+    """
+    try:
+        return workforce_service.apply_role_transition_recommendation(
+            db=db,
+            employee_id_or_number=employee_id,
+            project_code=payload.project_code,
+            title=payload.title,
+            description=payload.description,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

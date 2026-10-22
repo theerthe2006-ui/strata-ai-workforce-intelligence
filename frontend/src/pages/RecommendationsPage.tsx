@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
+  Briefcase,
   CheckCircle,
   Clock,
   Filter,
@@ -22,6 +23,7 @@ export function RecommendationsPage() {
   const queryClient = useQueryClient();
   const [filterDept, setFilterDept] = useState('All');
   const [filterPriority, setFilterPriority] = useState('All');
+  const [filterType, setFilterType] = useState('All');
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   const { data: recsResponse, isLoading } = useQuery({
@@ -45,7 +47,9 @@ export function RecommendationsPage() {
   const recommendations = recsResponse?.data || [];
 
   const filteredRecs = recommendations.filter((rec) => {
-    return filterDept === 'All' || rec.department === filterDept;
+    const matchesDept = filterDept === 'All' || rec.department === filterDept;
+    const matchesType = filterType === 'All' || rec.type === filterType;
+    return matchesDept && matchesType;
   });
 
   return (
@@ -124,6 +128,28 @@ export function RecommendationsPage() {
               <option value="Medium">Medium</option>
             </select>
           </div>
+
+          <div>
+            <label style={{ fontSize: '12px', color: 'var(--text-soft)', marginRight: '6px' }}>Intervention Type:</label>
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border)',
+                color: 'var(--text)',
+              }}
+            >
+              <option value="All">All Intervention Types</option>
+              <option value="Role Transition">Role Transition (Internal Mobility)</option>
+              <option value="Compensation">Compensation</option>
+              <option value="Upskilling">Upskilling</option>
+              <option value="Workload">Workload</option>
+              <option value="Mentorship">Mentorship</option>
+            </select>
+          </div>
         </div>
       </section>
 
@@ -171,6 +197,24 @@ export function RecommendationsPage() {
                   >
                     {rec.priority}
                   </span>
+                  {rec.type === 'Role Transition' && (
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        backgroundColor: 'rgba(129, 140, 248, 0.2)',
+                        color: '#818cf8',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      <Briefcase size={12} />
+                      Internal Mobility
+                    </span>
+                  )}
                   <span style={{ fontSize: '12px', color: 'var(--text-soft)' }}>
                     Target: <strong>{rec.employeeName}</strong> ({rec.employeeNumber}) • {rec.department}
                   </span>

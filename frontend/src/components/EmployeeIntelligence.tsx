@@ -18,10 +18,11 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getEmployees,
   getEmployeeDetail,
+  applyRoleTransitionRecommendation,
   type EmployeeListItem,
   type EmployeeDetailResponse,
 } from '../api/workforceApi';
@@ -35,11 +36,26 @@ export function EmployeeIntelligence({
   initialEmployeeId,
   onNavigateWhatIf,
 }: EmployeeIntelligenceProps) {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [department, setDepartment] = useState('All');
   const [riskTier, setRiskTier] = useState('All');
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(initialEmployeeId || null);
+  const [transitionMsg, setTransitionMsg] = useState<string | null>(null);
+
+  const transitionMutation = useMutation({
+    mutationFn: ({ projectCode, projectName }: { projectCode: string; projectName: string }) => {
+      if (!selectedEmp) throw new Error('No employee selected');
+      return applyRoleTransitionRecommendation(selectedEmp.employeeNumber, { project_code: projectCode });
+    },
+    onSuccess: (data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['employeeDetail', selectedId] });
+      queryClient.invalidateQueries({ queryKey: ['recommendations'] });
+      setTransitionMsg(`Role transition to "${vars.projectName}" recorded successfully as an active retention intervention!`);
+      setTimeout(() => setTransitionMsg(null), 4000);
+    },
+  });
 
   const employeesQuery = useQuery({
     queryKey: ['employees', search, department, riskTier, page],
@@ -281,6 +297,27 @@ export function EmployeeIntelligence({
                 </div>
 
                 <div className="modal-body">
+                  {transitionMsg && (
+                    <div
+                      style={{
+                        background: 'rgba(32, 201, 151, 0.15)',
+                        border: '1px solid rgba(32, 201, 151, 0.35)',
+                        color: 'var(--primary)',
+                        padding: '12px 16px',
+                        borderRadius: 10,
+                        fontSize: 13,
+                        fontWeight: 500,
+                        marginBottom: 16,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                      }}
+                    >
+                      <CheckCircle size={18} />
+                      <span>{transitionMsg}</span>
+                    </div>
+                  )}
+
                   {/* Attrition Risk Headline Card */}
                   <div
                     style={{
@@ -450,30 +487,95 @@ export function EmployeeIntelligence({
                         <Briefcase size={16} style={{ color: 'var(--primary)' }} />
                         Internal Mobility Opportunities (Hire Less. Develop Within.)
                       </h4>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {selectedEmp.internalRoleMatches.map((match, idx) => (
-                          <div
-                            key={idx}
-                            style={{
-                              background: 'var(--bg-card)',
-                              padding: '10px 14px',
-                              borderRadius: 8,
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                            }}
-                          >
-                            <div>
-                              <div style={{ fontWeight: 600, fontSize: 13 }}>{match.projectName}</div>
-                              <div style={{ fontSize: 11, color: 'var(--text-soft)' }}>
-                                Missing: {match.missingSkills.join(', ') || 'Fully Qualified'}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {selectedEmp.internalRoleMatches.map((match, idx) => {
+                          const isAlreadyRecommended = selectedEmp.recommendations.some(
+                            (r) =>
+                              r.type === 'Role Transition' &&
+                              r.title.toLowerCase().includes(match.projectName.toLowerCase())
+                          );
+
+                          return (
+                            <div
+                              key={idx}
+                              style={{
+                                background: 'var(--bg-card)',
+                                border: '1px solid var(--border-soft)',
+                                padding: '12px 16px',
+                                borderRadius: 8,
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                flexWrap: 'wrap',
+                                gap: 12,
+                              }}
+                            >
+                              <div style={{ minWidth: 200, flex: 1 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <span style={{ fontWeight: 600, fontSize: 14 }}>{match.projectName}</span>
+                                  <span
+                                    style={{
+                                      fontSize: 11,
+                                      color: 'var(--text-soft)',
+                                      background: 'rgba(255, 255, 255, 0.05)',
+                                      padding: '2px 6px',
+                                      borderRadius: 4,
+                                    }}
+                                  >
+                                    {match.department}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: 11, color: 'var(--text-soft)', marginTop: 4 }}>
+                                  Missing: {match.missingSkills.join(', ') || 'Fully Qualified'}
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                                <div style={{ textAlign: 'right' }}>
+                                  <div style={{ fontWeight: 700, color: 'var(--primary)', fontSize: 14 }}>
+                                    {match.matchScore}% Match
+                                  </div>
+                                  <div style={{ fontSize: 11, color: '#34d399', fontWeight: 500 }}>
+                                    -{match.estimatedRiskReduction ?? 20}% Risk
+                                  </div>
+                                </div>
+
+                                {isAlreadyRecommended ? (
+                                  <span
+                                    style={{
+                                      fontSize: 11,
+                                      fontWeight: 600,
+                                      color: 'var(--primary)',
+                                      background: 'rgba(32, 201, 151, 0.12)',
+                                      padding: '6px 10px',
+                                      borderRadius: 6,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 4,
+                                    }}
+                                  >
+                                    <CheckCircle size={13} />
+                                    Active Plan
+                                  </span>
+                                ) : (
+                                  <button
+                                    className="primary-button"
+                                    style={{ fontSize: 11, padding: '6px 12px', whiteSpace: 'nowrap' }}
+                                    disabled={transitionMutation.isPending}
+                                    onClick={() =>
+                                      transitionMutation.mutate({
+                                        projectCode: match.projectCode,
+                                        projectName: match.projectName,
+                                      })
+                                    }
+                                  >
+                                    Recommend Role Transition
+                                  </button>
+                                )}
                               </div>
                             </div>
-                            <div style={{ fontWeight: 700, color: 'var(--primary)', fontSize: 14 }}>
-                              {match.matchScore}% Match
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}

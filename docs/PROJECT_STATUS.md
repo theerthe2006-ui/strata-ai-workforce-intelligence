@@ -1,9 +1,9 @@
-﻿# STRATA.AI — Project Status
+# STRATA.AI — Project Status
 
 ## Overview
 - **Project**: STRATA.AI (Enterprise Workforce Predictive Analytics & Talent Intelligence)
 - **Current Milestone**: ALL PHASES COMPLETED (Phases 1 through 11 Verified)
-- **Status**: HEALTHY / ZERO COMPILATION ERRORS / 19 OF 19 TESTS PASSING / PRODUCTION READY
+- **Status**: HEALTHY / ZERO COMPILATION ERRORS / 22 OF 22 TESTS PASSING / PRODUCTION READY
 
 ## Implementation Checklist
 - [x] Phase 1: Workspace & Architecture Foundation
@@ -54,7 +54,27 @@
   - [x] CORS and TrustedHost security configured
   - [x] Vercel, Render, and Supabase deployment instructions documented
 
+## Recent Completed Work
+- **Feature**: Internal Role Recommendations for Attrition Mitigation & Frontend Integration
+  - Connected Attrition Prediction, Skill Mapping, and Internal Role Recommendations end-to-end.
+  - Implemented `workforce_service.get_role_transition_recommendations` and `workforce_service.apply_role_transition_recommendation` connecting attrition drivers with project requirements.
+  - Exposed `GET /api/v1/recommendations/role-transitions/{employee_id}` and `POST /api/v1/recommendations/role-transitions/{employee_id}/apply`.
+  - Wired "Recommend Role Transition" interactive mutation directly into the `EmployeeIntelligence` modal drawer with live risk reduction telemetry and active plan tracking.
+  - Added Intervention Type filtering (`Role Transition`, `Compensation`, `Upskilling`, `Workload`, `Mentorship`) and dedicated Internal Mobility badges in `RecommendationsPage`.
+  - Enriched `internalRoleMatches` with `estimatedRiskReduction` and verified 22/22 tests passing.
+
+## Files Changed
+- `frontend/src/components/EmployeeIntelligence.tsx`: Added interactive "Recommend Role Transition" mutation, active plan state, and success feedback.
+- `frontend/src/pages/RecommendationsPage.tsx`: Added Intervention Type filtering and Internal Mobility badges.
+- `backend/app/services/workforce_service.py`: Added `estimatedRiskReduction` to `internalRoleMatches`, added `get_role_transition_recommendations` and `apply_role_transition_recommendation`.
+- `backend/app/api/v1/routes/domains/recommendations.py`: Added `GET /role-transitions/{employee_id}` and `POST /role-transitions/{employee_id}/apply`.
+- `backend/tests/test_domains.py`: Added tests for recommendations listing, role transitions retrieval, and application.
+- `frontend/src/api/workforceApi.ts`: Added `estimatedRiskReduction` to `InternalRoleMatch`, added `RoleTransitionRecommendation`, `EmployeeRoleTransitionsResponse`, `getRoleTransitionRecommendations`, and `applyRoleTransitionRecommendation`.
+- `docs/PROJECT_STATUS.md`: Updated status, verification results, and next task.
+
 ## Verification Summary
-- **Frontend Build**: 
-pm run build completed in **8.17s with 0 errors**.
-- **Backend Tests**: python -m pytest passed **19/19 tests** in **3.17s**.
+- **Frontend Build**: `npm run build` completed in **18.45s with 0 errors**.
+- **Backend Tests**: `pytest` passed **22/22 tests** in **8.37s**.
+
+## Exact Next Task
+- Connect What-If simulation directly to Role Transitions so managers can simulate the exact post-mobility attrition risk trajectory alongside compensation and workload adjustments.

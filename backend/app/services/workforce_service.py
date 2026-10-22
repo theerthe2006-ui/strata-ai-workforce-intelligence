@@ -276,6 +276,11 @@ class WorkforceService:
                 match_pct = round((len(matched_skills) / len(reqs) * 100.0), 1)
                 missing = [r.skill_name for r in reqs if r.skill_name not in emp_skill_names]
                 if match_pct >= 40.0:
+                    base_red = 22.0 if pred["risk_tier"] in ["Critical", "High"] else 14.0
+                    stagnation = 5.0 if emp.years_since_last_promotion >= 2.0 else 0.0
+                    burnout = 4.0 if emp.monthly_hours >= 190 else 0.0
+                    est_red = round(min(base_red * (match_pct / 100.0) + stagnation + burnout, 32.0), 1)
+
                     internal_matches.append({
                         "projectName": prj.name,
                         "projectCode": prj.code,
@@ -283,6 +288,7 @@ class WorkforceService:
                         "matchScore": match_pct,
                         "matchedSkills": matched_skills,
                         "missingSkills": missing,
+                        "estimatedRiskReduction": est_red,
                     })
 
         internal_matches.sort(key=lambda x: -x["matchScore"])
@@ -612,6 +618,284 @@ class WorkforceService:
             db.commit()
             return True
         return False
+
+    def get_role_transition_recommendations(
+        self, db: Session, employee_id_or_number: str
+    ) -> dict[str, Any] | None:
+        """
+        Synthesizes Attrition Prediction, Skill Mapping, and Internal Role Recommendations.
+        Maps verified employee skills against enterprise project requirements to generate
+        high-impact internal mobility pathways that mitigate attrition risk.
+        """
+        if str(employee_id_or_number).isdigit():
+            emp = db.query(Employee).filter(Employee.id == int(employee_id_or_number)).first()
+        else:
+            emp = db.query(Employee).filter(Employee.employee_number == str(employee_id_or_number)).first()
+
+        if not emp:
+            return None
+
+        # 1. Attrition Prediction Context
+        features = {
+            "satisfaction_score": emp.satisfaction_score,
+            "engagement_score": emp.engagement_score,
+            "monthly_hours": emp.monthly_hours,
+            "overtime_hours": emp.overtime_hours,
+            "compa_ratio": emp.compa_ratio,
+            "years_since_last_promotion": emp.years_since_last_promotion,
+            "tenure_years": emp.tenure_years,
+            "project_count": emp.project_count,
+            "manager_rating": emp.manager_rating,
+            "performance_score": emp.performance_score,
+            "salary_growth_rate": emp.salary_growth_rate,
+            "salary": emp.salary,
+        }
+        pred = prediction_service.predict(features)
+        attrition_risk = pred["attrition_risk_score"]
+        risk_tier = pred["risk_tier"]
+        contributing_factors = pred["contributing_factors"]
+
+        # 2. Skill Mapping Context
+        skills = db.query(EmployeeSkill).filter(EmployeeSkill.employee_id == emp.id).all()
+        emp_skills_dict = {s.skill_name: s.proficiency for s in skills}
+
+        # 3. Internal Role Matching & Recommendation Synthesis
+        projects = db.query(Project).all()
+        role_recommendations = []
+
+        for prj in projects:
+            reqs = db.query(ProjectRequirement).filter(ProjectRequirement.project_id == prj.id).all()
+            if not reqs:
+                continue
+
+            matched_skills = [
+                {"skill": r.skill_name, "proficiency": emp_skills_dict[r.skill_name]}
+                for r in reqs
+                if r.skill_name in emp_skills_dict
+            ]
+            missing_skills = [r.skill_name for r in reqs if r.skill_name not in emp_skills_dict]
+
+            # Weighted match score
+            score_acc = sum(min(s["proficiency"] / 4.0, 1.0) for s in matched_skills)
+            match_pct = round((score_acc / len(reqs)) * 100.0, 1)
+
+            if match_pct >= 25.0:
+                # Calculate estimated attrition risk reduction
+                base_reduction = 22.0 if risk_tier in ["Critical", "High"] else 14.0
+                stagnation_bonus = 5.0 if emp.years_since_last_promotion >= 2.0 else 0.0
+                burnout_bonus = 4.0 if emp.monthly_hours >= 190 else 0.0
+                est_reduction = round(min(base_reduction * (match_pct / 100.0) + stagnation_bonus + burnout_bonus, 32.0), 1)
+
+                # Strategic Rationale connecting risk drivers to role transition
+                reasons = []
+                if emp.years_since_last_promotion >= 2.0:
+                    reasons.append("unlocks stalled career progression")
+                if emp.monthly_hours >= 190 or emp.overtime_hours >= 20:
+                    reasons.append("rebalances unsustainable workload hours")
+                if emp.manager_rating <= 3.2:
+                    reasons.append("provides leadership re-alignment")
+                if matched_skills:
+                    skill_names_sample = ", ".join([s["skill"] for s in matched_skills[:2]])
+                    reasons.append(f"maximizes existing strength in {skill_names_sample}")
+
+                rationale_str = f"Strategic internal mobility to {prj.name} ({prj.department}) " + (
+                    f"directly {', and '.join(reasons)}." if reasons else "supports cross-functional capability development."
+                )
+
+                priority = "Critical" if risk_tier == "Critical" else ("High" if risk_tier == "High" else "Medium")
+
+                role_recommendations.append({
+                    "projectId": prj.id,
+                    "projectName": prj.name,
+                    "projectCode": prj.code,
+                    "department": prj.department,
+                    "targetRole": f"{prj.name} Contributor",
+                    "matchPercentage": match_pct,
+                    "matchedSkills": matched_skills,
+                    "missingSkills": missing_skills,
+                    "estimatedRiskReduction": est_reduction,
+                    "simulatedPostTransitionRisk": round(max(attrition_risk - est_reduction, 5.0), 1),
+                    "priority": priority,
+                    "strategicRationale": rationale_str,
+                })
+
+        role_recommendations.sort(key=lambda r: (-r["matchPercentage"], -r["estimatedRiskReduction"]))
+
+        return {
+            "employeeId": emp.id,
+            "employeeNumber": emp.employee_number,
+            "employeeName": f"{emp.first_name} {emp.last_name}",
+            "currentRole": emp.role_title,
+            "department": emp.department,
+            "attritionRisk": attrition_risk,
+            "riskTier": risk_tier,
+            "primaryRiskDrivers": [f["label"] for f in contributing_factors if f.get("is_risk_driver")][:3],
+            "verifiedSkillsCount": len(skills),
+            "recommendationsCount": len(role_recommendations),
+            "roleRecommendations": role_recommendations,
+        }
+
+    def apply_role_transition_recommendation(
+        self,
+        db: Session,
+        employee_id_or_number: str,
+        project_code: str,
+        title: str | None = None,
+        description: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Records an internal role transition recommendation into the formal retention interventions table.
+        """
+        if str(employee_id_or_number).isdigit():
+            emp = db.query(Employee).filter(Employee.id == int(employee_id_or_number)).first()
+        else:
+            emp = db.query(Employee).filter(Employee.employee_number == str(employee_id_or_number)).first()
+
+        if not emp:
+            raise ValueError(f"Employee {employee_id_or_number} not found.")
+
+        prj = db.query(Project).filter(Project.code == project_code).first()
+        if not prj:
+            raise ValueError(f"Project with code {project_code} not found.")
+
+        # Compute recommendation context
+        rec_data = self.get_role_transition_recommendations(db, emp.employee_number)
+        matched_rec = next(
+            (r for r in rec_data["roleRecommendations"] if r["projectCode"] == project_code),
+            None
+        ) if rec_data else None
+
+        est_reduction = matched_rec["estimatedRiskReduction"] if matched_rec else 18.0
+        priority = matched_rec["priority"] if matched_rec else ("Critical" if emp.risk_tier == "Critical" else "High")
+        rec_title = title or f"Role Transition: {prj.name} ({prj.code})"
+        rec_description = description or (matched_rec["strategicRationale"] if matched_rec else f"Transition employee to {prj.name} in {prj.department} to reduce retention risk.")
+
+        # Avoid exact duplicate open recommendations
+        existing = (
+            db.query(RetentionRecommendation)
+            .filter(
+                RetentionRecommendation.employee_id == emp.id,
+                RetentionRecommendation.intervention_type == "Role Transition",
+                RetentionRecommendation.title == rec_title,
+                RetentionRecommendation.status != "Resolved",
+            )
+            .first()
+        )
+        if existing:
+            return {
+                "message": "Role transition recommendation already active",
+                "id": existing.id,
+                "status": existing.status,
+                "estimatedRiskReduction": existing.estimated_risk_reduction,
+            }
+
+        rec = RetentionRecommendation(
+            employee_id=emp.id,
+            intervention_type="Role Transition",
+            title=rec_title,
+            description=rec_description,
+            priority=priority,
+            status="Open",
+            estimated_risk_reduction=est_reduction,
+        )
+        db.add(rec)
+        db.commit()
+        db.refresh(rec)
+
+        return {
+            "message": "Role transition recommendation recorded successfully",
+            "id": rec.id,
+            "status": rec.status,
+            "interventionType": rec.intervention_type,
+            "title": rec.title,
+            "estimatedRiskReduction": rec.estimated_risk_reduction,
+        }
+
+    def simulate_role_transition_what_if(
+        self,
+        db: Session,
+        employee_id_or_number: str,
+        modifications: dict[str, Any],
+        role_transition_project_code: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Simulate retention outcomes under What-If interventions, with optional internal
+        role mobility and concrete skill-gap learning roadmap synthesis.
+        """
+        emp = self.get_employee_detail(db, str(employee_id_or_number))
+        if not emp:
+            raise ValueError(f"Employee {employee_id_or_number} not found.")
+
+        current_features = {
+            "satisfaction_score": emp["satisfactionScore"],
+            "engagement_score": emp["engagementScore"],
+            "monthly_hours": emp["monthlyHours"],
+            "overtime_hours": emp["overtimeHours"],
+            "compa_ratio": emp["compaRatio"],
+            "years_since_last_promotion": emp["yearsSinceLastPromotion"],
+            "tenure_years": emp["tenureYears"],
+            "project_count": emp["projectCount"],
+            "manager_rating": emp["managerRating"],
+            "performance_score": emp["performanceScore"],
+            "salary_growth_rate": emp["salaryGrowthRate"],
+            "salary": emp["salary"],
+        }
+
+        mods = dict(modifications)
+        role_plan = None
+
+        if role_transition_project_code:
+            prj = db.query(Project).filter(Project.code == role_transition_project_code).first()
+            if prj:
+                reqs = db.query(ProjectRequirement).filter(ProjectRequirement.project_id == prj.id).all()
+                emp_skill_map = {s["name"]: s["proficiency"] for s in emp["skills"]}
+
+                matched = [r.skill_name for r in reqs if r.skill_name in emp_skill_map]
+                missing = [r.skill_name for r in reqs if r.skill_name not in emp_skill_map]
+                score_acc = sum(min(emp_skill_map.get(r.skill_name, 0) / 4.0, 1.0) for r in reqs)
+                match_pct = round((score_acc / len(reqs) * 100.0), 1) if reqs else 50.0
+
+                # Role transition automatically resets stagnation and normalizes workload unless overridden
+                if "years_since_last_promotion" not in mods:
+                    mods["years_since_last_promotion"] = 0.0
+                if "monthly_hours" not in mods:
+                    mods["monthly_hours"] = 168
+                if "overtime_hours" not in mods:
+                    mods["overtime_hours"] = 5
+                if "manager_rating" not in mods and emp["managerRating"] < 3.5:
+                    mods["manager_rating"] = 4.4
+                if "satisfaction_score" not in mods:
+                    mods["satisfaction_score"] = min(emp["satisfactionScore"] + 25.0, 85.0)
+                if "engagement_score" not in mods:
+                    mods["engagement_score"] = min(emp["engagementScore"] + 25.0, 85.0)
+
+                learning_roadmap = [
+                    {
+                        "skill": sk,
+                        "targetProficiency": "Advanced",
+                        "estimatedWeeks": 3,
+                        "curriculumModule": f"{sk} Enterprise Production & Systems Integration",
+                    }
+                    for sk in missing
+                ]
+
+                role_plan = {
+                    "projectName": prj.name,
+                    "projectCode": prj.code,
+                    "department": prj.department,
+                    "matchPercentage": match_pct,
+                    "matchedSkills": matched,
+                    "missingSkills": missing,
+                    "totalUpskillingWeeks": len(missing) * 3,
+                    "learningRoadmap": learning_roadmap,
+                    "strategicMobilityRationale": f"Transition to {prj.name} eliminates career stagnation, leverages strengths in {', '.join(matched[:2]) if matched else 'core domain'}, and provides an actionable {len(missing)*3}-week upskilling pathway.",
+                }
+
+        result = prediction_service.simulate_what_if(current_features, mods)
+        result["employeeName"] = emp["fullName"]
+        result["employeeNumber"] = emp["employeeNumber"]
+        result["roleTransitionPlan"] = role_plan
+        return result
 
 
 workforce_service = WorkforceService()

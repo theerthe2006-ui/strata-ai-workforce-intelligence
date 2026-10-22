@@ -79,3 +79,70 @@ def test_domain_scenarios_what_if():
     data = response.json()
     assert "simulated_risk" in data
     assert "risk_reduction_points" in data
+
+
+def test_domain_recommendations_list():
+    headers = get_auth_headers()
+    response = client.get("/api/v1/recommendations", headers=headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert "data" in data
+    assert isinstance(data["data"], list)
+
+
+def test_domain_role_transition_recommendations_connecting_attrition_and_skills():
+    headers = get_auth_headers()
+    response = client.get("/api/v1/recommendations/role-transitions/EMP-104", headers=headers)
+    assert response.status_code == 200
+    data = response.json()
+
+    # 1. Attrition Prediction Context
+    assert data["employeeNumber"] == "EMP-104"
+    assert "attritionRisk" in data
+    assert data["riskTier"] in ["Critical", "High"]
+    assert "primaryRiskDrivers" in data
+
+    # 2. Skill Mapping Context & Role Recommendations
+    assert data["verifiedSkillsCount"] > 0
+    assert data["recommendationsCount"] > 0
+    assert len(data["roleRecommendations"]) > 0
+
+    top_role = data["roleRecommendations"][0]
+    assert "projectName" in top_role
+    assert "projectCode" in top_role
+    assert "matchPercentage" in top_role
+    assert top_role["matchPercentage"] >= 25.0
+    assert len(top_role["matchedSkills"]) > 0
+    assert top_role["estimatedRiskReduction"] > 0
+    assert "strategicRationale" in top_role
+    assert top_role["simulatedPostTransitionRisk"] < data["attritionRisk"]
+
+
+def test_domain_apply_role_transition_recommendation():
+    headers = get_auth_headers()
+    # Get recommendations first to obtain a valid projectCode
+    recs_resp = client.get("/api/v1/recommendations/role-transitions/EMP-104", headers=headers)
+    assert recs_resp.status_code == 200
+    top_prj = recs_resp.json()["roleRecommendations"][0]["projectCode"]
+
+    apply_payload = {
+        "project_code": top_prj,
+        "title": f"Role Transition Test: {top_prj}",
+    }
+    apply_resp = client.post(
+        "/api/v1/recommendations/role-transitions/EMP-104/apply",
+        json=apply_payload,
+        headers=headers,
+    )
+    assert apply_resp.status_code in [200, 201]
+    result = apply_resp.json()
+    assert result["id"] > 0
+    assert result["estimatedRiskReduction"] > 0
+
+    # Verify that the new Role Transition recommendation appears in the recommendations feed
+    list_resp = client.get("/api/v1/recommendations", headers=headers)
+    assert list_resp.status_code == 200
+    all_recs = list_resp.json()["data"]
+    role_transitions = [r for r in all_recs if r["type"] == "Role Transition"]
+    assert len(role_transitions) > 0
+

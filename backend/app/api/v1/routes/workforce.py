@@ -22,6 +22,7 @@ class WhatIfSimulationRequest(BaseModel):
     years_since_last_promotion: float | None = None
     manager_rating: float | None = None
     salary_growth_rate: float | None = None
+    role_transition_project_code: str | None = None
 
 
 class TalentMatchRequest(BaseModel):
@@ -140,28 +141,8 @@ def simulate_intervention(
 ) -> dict[str, Any]:
     """
     Module 10 — What-If Intervention Simulator:
-    Recalculates risk in real-time with the trained ML model!
+    Recalculates risk in real-time with the trained ML model, with optional role transition synthesis!
     """
-    emp = workforce_service.get_employee_detail(db, str(payload.employee_id))
-    if not emp:
-        raise HTTPException(status_code=404, detail="Employee not found")
-
-    current_features = {
-        "satisfaction_score": emp["satisfactionScore"],
-        "engagement_score": emp["engagementScore"],
-        "monthly_hours": emp["monthlyHours"],
-        "overtime_hours": emp["overtimeHours"],
-        "compa_ratio": emp["compaRatio"],
-        "years_since_last_promotion": emp["yearsSinceLastPromotion"],
-        "tenure_years": emp["tenureYears"],
-        "project_count": emp["projectCount"],
-        "manager_rating": emp["managerRating"],
-        "performance_score": emp["performanceScore"],
-        "salary_growth_rate": emp["salaryGrowthRate"],
-        "salary": emp["salary"],
-    }
-
-    # Extract user modifications
     modifications = {}
     for key in [
         "satisfaction_score",
@@ -177,10 +158,15 @@ def simulate_intervention(
         if val is not None:
             modifications[key] = val
 
-    result = prediction_service.simulate_what_if(current_features, modifications)
-    result["employeeName"] = emp["fullName"]
-    result["employeeNumber"] = emp["employeeNumber"]
-    return result
+    try:
+        return workforce_service.simulate_role_transition_what_if(
+            db=db,
+            employee_id_or_number=str(payload.employee_id),
+            modifications=modifications,
+            role_transition_project_code=payload.role_transition_project_code,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.post("/talent-match")

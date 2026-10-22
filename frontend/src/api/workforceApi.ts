@@ -144,6 +144,7 @@ export interface InternalRoleMatch {
   matchScore: number;
   matchedSkills: string[];
   missingSkills: string[];
+  estimatedRiskReduction?: number;
 }
 
 export interface EmployeeDetailResponse {
@@ -476,6 +477,57 @@ export async function updateRecommendationStatus(
     null,
     { params: { new_status: newStatus } }
   );
+  return data;
+}
+
+export interface RoleTransitionRecommendation {
+  projectId: number;
+  projectName: string;
+  projectCode: string;
+  department: string;
+  targetRole: string;
+  matchPercentage: number;
+  matchedSkills: Array<{ skill: string; proficiency: number }>;
+  missingSkills: string[];
+  estimatedRiskReduction: number;
+  simulatedPostTransitionRisk: number;
+  priority: string;
+  strategicRationale: string;
+}
+
+export interface EmployeeRoleTransitionsResponse {
+  employeeId: number;
+  employeeNumber: string;
+  employeeName: string;
+  currentRole: string;
+  department: string;
+  attritionRisk: number;
+  riskTier: string;
+  primaryRiskDrivers: string[];
+  verifiedSkillsCount: number;
+  recommendationsCount: number;
+  roleRecommendations: RoleTransitionRecommendation[];
+}
+
+export async function getRoleTransitionRecommendations(
+  employeeId: string | number
+): Promise<EmployeeRoleTransitionsResponse> {
+  const { data } = await apiClient.get<EmployeeRoleTransitionsResponse>(
+    `/api/v1/recommendations/role-transitions/${employeeId}`
+  );
+  return data;
+}
+
+export async function applyRoleTransitionRecommendation(
+  employeeId: string | number,
+  payload: { project_code: string; title?: string; description?: string }
+): Promise<{ message: string; id: number; status: string; estimatedRiskReduction: number }> {
+  const { data } = await apiClient.post<{
+    message: string;
+    id: number;
+    status: string;
+    estimatedRiskReduction: number;
+  }>(`/api/v1/recommendations/role-transitions/${employeeId}/apply`, payload);
   return data;
 }
 
