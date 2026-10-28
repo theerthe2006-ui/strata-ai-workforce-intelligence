@@ -1,0 +1,49 @@
+services:
+  - type: web
+    name: strata-ai-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: PYTHONPATH=. uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.8"
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: strata-ai-db
+          property: connectionString
+      - key: FRONTEND_ORIGIN
+        fromService:
+          type: web
+          name: strata-ai-web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: ALLOWED_HOSTS
+        value: '["*"]'
+
+  - type: web
+    name: strata-ai-web
+    runtime: static
+    plan: free
+    buildCommand: npm install && npm run build
+    staticPublishPath: frontend/dist
+    rootDir: frontend
+    envVars:
+      - key: VITE_API_BASE_URL
+        fromService:
+          type: web
+          name: strata-ai-api
+          envVarKey: RENDER_EXTERNAL_URL
+
+databases:
+  - name: strata-ai-db
+    plan: free
+    databaseName: strata_ai
+    user: strata_ai
+    postgresMajorVersion: "16"
