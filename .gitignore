@@ -39,3 +39,7 @@ ml/artifacts/*_backup_*.json
 # Generated TypeScript build metadata
 frontend/*.tsbuildinfo
 frontend/**/*.tsbuildinfo
+
+# Generated project tree files
+project-tree.txt
+project_structure.txt

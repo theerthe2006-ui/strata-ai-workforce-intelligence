@@ -1,25 +1,46 @@
+# Core web framework
 fastapi==0.115.0
 uvicorn[standard]==0.31.0
 pydantic==2.9.2
 pydantic-settings==2.6.1
+
+# Auth & Security
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+pyjwt==2.9.0
+
+# Database (SQLite via SQLAlchemy — no external DB driver needed for deployment)
 sqlalchemy==2.0.36
-asyncpg==0.29.0
-redis==5.2.1
-psycopg2-binary==2.9.12
-scikit-learn==1.5.2
-xgboost==2.1.2
+
+# Data processing (used by prediction_engine analytics)
 pandas==2.2.3
 numpy==2.1.3
-spacy==3.8.2
-transformers==4.45.1
-sentence-transformers==3.2.1
-pytest==8.3.3
-pytest-asyncio==0.24.0
+
+# Resume parsing
+pypdf==5.1.0
+python-docx==1.1.2
+
+# HTTP & Forms
 httpx==0.27.2
-pyjwt==2.9.0
 python-multipart==0.0.9
 email-validator==2.3.0
-pypdf
-python-docx
+
+# Testing (not installed on Render, but kept for CI)
+pytest==8.3.3
+pytest-asyncio==0.24.0
+
+# ML model inference (predict_service.py loads a real scikit-learn RandomForest)
+scikit-learn==1.5.2
+joblib==1.4.2
+
+# --- Heavy NLP packages below are NOT imported by the app at runtime ---
+# --- Uncomment only if you add spacy/transformer model loading ---
+# xgboost==2.1.2
+# spacy==3.8.2
+# transformers==4.45.1
+# sentence-transformers==3.2.1
+
+# --- External DB drivers (not needed for SQLite deployment) ---
+# asyncpg==0.29.0
+# psycopg2-binary==2.9.12
+# redis==5.2.1

@@ -20,4 +20,4 @@ COPY --from=frontend-build /app/dist ./dist
 
 EXPOSE 3000
 
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+CMD ["npx", "serve", "dist", "-l", "3000", "-s"]
