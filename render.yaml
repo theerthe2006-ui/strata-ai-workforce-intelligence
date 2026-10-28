@@ -33,7 +33,7 @@ services:
 
   # Frontend Static Site
   - type: web
-    name: strata-ai-workforce
+    name: strata-ai-workforce-intelligence-4
     runtime: static
     rootDir: frontend
     buildCommand: npm install && npm run build
