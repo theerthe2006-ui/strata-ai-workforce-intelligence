@@ -28,8 +28,11 @@ class Settings(BaseSettings):
         "http://localhost:8000"
     ]
     allowed_hosts: list[str] = ["*"]
+    frontend_origin: str = ""
     ml_model_dir: Path = Path(__file__).resolve().parent.parent.parent.parent / "ml" / "artifacts"
     upload_dir: Path = Path(__file__).resolve().parent.parent.parent.parent / "uploads"
 
 settings = Settings()
+if settings.frontend_origin:
+    settings.allowed_origins = list(dict.fromkeys([settings.frontend_origin.rstrip("/"), *settings.allowed_origins]))
 
