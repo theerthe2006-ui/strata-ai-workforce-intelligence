@@ -31,10 +31,9 @@ services:
     healthCheckPath: /api/v1/health
 
   # Frontend Static Site
-  - type: static
+  - type: web
     name: strata-ai-workforce
     runtime: static
-    plan: free
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: dist
