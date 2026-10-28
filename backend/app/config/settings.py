@@ -1,7 +1,10 @@
+import json
 import os
 import sys
 import warnings
 from pathlib import Path
+from typing import Any
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # -------------------------------------------------------------------
@@ -50,18 +53,59 @@ def _resolve_secret_key() -> str:
     return _DEV_FALLBACK_KEY
 
 
-def _parse_origins() -> list[str]:
-    """Parse ALLOWED_ORIGINS from env (comma-separated string) or return defaults."""
-    raw = os.environ.get("ALLOWED_ORIGINS", "")
-    if raw:
-        return [o.strip() for o in raw.split(",") if o.strip()]
-    return [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:8000",
-    ]
+def _parse_string_list(raw: Any) -> list[str]:
+    """Accept a JSON array, a comma-separated string, or a plain string
+    and always return ``list[str]``.  This is the single canonical
+    parser used by both ``allowed_origins`` and ``allowed_hosts`` so
+    that *any* env-var format works with pydantic-settings.
+    """
+    if isinstance(raw, list):
+        return [str(v).strip() for v in raw if str(v).strip()]
+    if not isinstance(raw, str):
+        return [str(raw)]
+    raw = raw.strip()
+    if not raw:
+        return []
+    # Try JSON array first: '["https://a.com","https://b.com"]'
+    if raw.startswith("["):
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                return [str(v).strip() for v in parsed if str(v).strip()]
+        except (json.JSONDecodeError, TypeError):
+            pass
+    # Comma-separated: "https://a.com,https://b.com"
+    if "," in raw:
+        return [v.strip() for v in raw.split(",") if v.strip()]
+    # Single value: "*"
+    return [raw]
+
+
+def _normalize_list_env_var(var_name: str) -> None:
+    """If the environment variable *var_name* is set, convert its value
+    to a JSON array that pydantic-settings can decode natively for a
+    ``list[str]`` field.  This runs **before** ``Settings()`` so the
+    ``EnvSettingsSource`` never sees a format it cannot parse.
+    """
+    raw = os.environ.get(var_name)
+    if raw is None:
+        return
+    parsed = _parse_string_list(raw)
+    os.environ[var_name] = json.dumps(parsed)
+
+
+_DEFAULT_DEV_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:8000",
+]
+
+
+# ---- Normalize env vars before constructing Settings -----------------
+_normalize_list_env_var("ALLOWED_ORIGINS")
+_normalize_list_env_var("ALLOWED_HOSTS")
 
 
 class Settings(BaseSettings):
@@ -82,7 +126,7 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 120
     refresh_token_expire_days: int = 7
-    allowed_origins: list[str] = _parse_origins()
+    allowed_origins: list[str] = _DEFAULT_DEV_ORIGINS
     allowed_hosts: list[str] = ["*"]
     frontend_origin: str = ""
     ml_model_dir: Path = Path(__file__).resolve().parent.parent.parent.parent / "ml" / "artifacts"
