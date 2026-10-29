@@ -32,10 +32,6 @@ def get_current_user(
     db: Session = Depends(get_db),
 ) -> User:
     if not auth:
-        # For smooth demo and local evaluation, default to System Admin if no header provided
-        admin_user = db.query(User).filter(User.role == "ADMIN").first()
-        if admin_user:
-            return admin_user
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication credentials were not provided.",

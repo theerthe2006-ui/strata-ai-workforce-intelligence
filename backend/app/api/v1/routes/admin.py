@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_roles
 from app.database import get_db
 from app.models.workforce import AuditLog, User
 from app.schemas.admin import AdminSettingsResponse, UserListResponse
@@ -10,7 +10,7 @@ router = APIRouter()
 
 
 @router.get("/users", response_model=UserListResponse)
-def list_users() -> UserListResponse:
+def list_users(current_user: User = Depends(require_roles(["ADMIN", "HR"]))) -> UserListResponse:
     return UserListResponse(
         data=[
             {"id": 1, "email": "admin@enterprise.workforce", "role": "ADMIN"},
@@ -21,7 +21,7 @@ def list_users() -> UserListResponse:
 
 
 @router.get("/settings", response_model=AdminSettingsResponse)
-def settings() -> AdminSettingsResponse:
+def settings(current_user: User = Depends(require_roles(["ADMIN"]))) -> AdminSettingsResponse:
     return AdminSettingsResponse(
         theme="dark",
         model="attrition_v1.0.0",
@@ -32,7 +32,7 @@ def settings() -> AdminSettingsResponse:
 @router.get("/audit-logs")
 def get_audit_logs(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles(["ADMIN", "HR"])),
 ):
     """Retrieve immutable security and telemetry audit events."""
     logs = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).limit(100).all()
