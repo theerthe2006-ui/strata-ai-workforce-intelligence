@@ -140,39 +140,43 @@ export function AnalyticsPage() {
 
       {activeTab === 'SUCCESSION' && (
         <section style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {succession.map((plan: any) => (
-            <article key={plan.roleTitle} className="panel" style={{ padding: '20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <div>
-                  <h3 style={{ fontSize: '16px', fontWeight: 600 }}>{plan.roleTitle}</h3>
-                  <span style={{ fontSize: '12px', color: 'var(--text-soft)' }}>
-                    Current Incumbent: <strong>{plan.incumbentName}</strong> • {plan.department}
-                  </span>
-                </div>
-                <span
-                  style={{
-                    fontSize: '12px',
-                    padding: '4px 10px',
-                    borderRadius: '12px',
-                    backgroundColor:
-                      plan.readinessTier === 'READY_NOW'
+          {succession.length === 0 && (
+            <div className="panel" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-soft)' }}>
+              No succession plans available.
+            </div>
+          )}
+          {succession.map((plan: any) => {
+            const isReady = plan.readinessTier === 'Ready Now';
+            return (
+              <article key={`${plan.roleTitle}-${plan.department}`} className="panel" style={{ padding: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <div>
+                    <h3 style={{ fontSize: '16px', fontWeight: 600 }}>{plan.roleTitle}</h3>
+                    <span style={{ fontSize: '12px', color: 'var(--text-soft)' }}>
+                      Current Incumbent: <strong>{plan.currentHolder}</strong> • {plan.department}
+                    </span>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: '12px',
+                      padding: '4px 10px',
+                      borderRadius: '12px',
+                      backgroundColor: isReady
                         ? 'rgba(32, 201, 151, 0.15)'
                         : 'rgba(251, 191, 36, 0.15)',
-                    color: plan.readinessTier === 'READY_NOW' ? 'var(--primary)' : 'var(--warning)',
-                    fontWeight: 600,
-                  }}
-                >
-                  {plan.readinessTier === 'READY_NOW' ? 'Pipeline Ready' : 'Pipeline Developing'}
-                </span>
-              </div>
+                      color: isReady ? 'var(--primary)' : 'var(--warning)',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {isReady ? 'Pipeline Ready' : plan.readinessTier}
+                  </span>
+                </div>
 
-              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-soft)', marginBottom: '8px' }}>
-                IDENTIFIED SUCCESSORS
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
-                {plan.successors.map((s: any, idx: number) => (
+                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-soft)', marginBottom: '8px' }}>
+                  IDENTIFIED SUCCESSOR
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
                   <div
-                    key={idx}
                     style={{
                       padding: '12px',
                       backgroundColor: 'var(--bg-card)',
@@ -181,17 +185,20 @@ export function AnalyticsPage() {
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 600, fontSize: '14px' }}>{s.name}</span>
-                      <strong style={{ color: 'var(--primary)' }}>{s.matchScore}% Match</strong>
+                      <span style={{ fontWeight: 600, fontSize: '14px' }}>{plan.successorName}</span>
+                      <strong style={{ color: 'var(--primary)' }}>{plan.readinessScore}% Ready</strong>
                     </div>
                     <div style={{ fontSize: '12px', color: 'var(--text-soft)', marginTop: '4px' }}>
-                      Flight Risk: {s.attritionRisk}% • Readiness: {s.readinessYears} years
+                      Readiness Tier: {plan.readinessTier}
+                      {plan.missingSkills && plan.missingSkills.length > 0 && (
+                        <span> • Gaps: {plan.missingSkills.join(', ')}</span>
+                      )}
                     </div>
                   </div>
-                ))}
-              </div>
-            </article>
-          ))}
+                </div>
+              </article>
+            );
+          })}
         </section>
       )}
 

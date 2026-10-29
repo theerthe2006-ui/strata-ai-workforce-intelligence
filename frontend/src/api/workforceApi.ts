@@ -22,6 +22,30 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+// Auto-clear stale/invalid sessions on 401 and retry the request once without
+// the invalid token so that the backend's demo fallback (default admin) kicks in.
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retried &&
+      localStorage.getItem(authStorageKey)
+    ) {
+      originalRequest._retried = true;
+      // The stored token is invalid/expired — remove it so the backend falls
+      // back to the default admin user for this request.
+      localStorage.removeItem(authStorageKey);
+      delete originalRequest.headers.Authorization;
+      // Dispatch a storage event so AuthContext can react and clear its state.
+      window.dispatchEvent(new StorageEvent('storage', { key: authStorageKey }));
+      return apiClient(originalRequest);
+    }
+    return Promise.reject(error);
+  }
+);
+
 export interface LoginRequest {
   email: string;
   password: string;
